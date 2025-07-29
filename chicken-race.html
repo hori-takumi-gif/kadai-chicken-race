@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>課題提出チキンレース ～さっさと出せ～</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f8f8f8;
+      margin: 0;
+      padding: 1em;
+    }
+    #startScreen, #ruleScreen, #gameScreen, #resultScreen, #lateScreen, #confirmScreen, #confirmScreen2 {
+      display: none;
+      padding: 40px;
+      text-align: center;
+    }
+    #startScreen h1, #ruleScreen p {
+      text-align: center;
+    }
+    button.start-btn, .submit-btn, .confirm-btn {
+      background: blue;
+      color: white;
+      border: 3px solid white;
+      font-size: 20px;
+      padding: 10px 30px;
+      cursor: pointer;
+      position: relative;
+    }
+    #ruleScreen p, #gameScreen p {
+      font-size: 1em;
+      white-space: pre-wrap;
+      max-width: 600px;
+      margin: auto;
+    }
+    #countdown {
+      font-size: 1.2em;
+      position: relative;
+      margin-top: 2em;
+      text-align: center;
+    }
+    #errorScreen {
+      display: none;
+      background: white;
+      position: fixed;
+      top: 30%;
+      left: 5%;
+      width: 90%;
+      padding: 20px;
+      border: 2px solid black;
+      font-size: 0.9em;
+      text-align: center;
+    }
+    #lateScreen {
+      background-color: #ffdddd;
+    }
+    #retryBtn {
+      position: fixed;
+      right: 10px;
+      bottom: 10px;
+      padding: 10px 20px;
+      background: gray;
+      color: white;
+      cursor: pointer;
+      display: none;
+    }
+    .spinner {
+      cursor: wait !important;
+    }
+    @keyframes float {
+      0% { transform: translate(0, 0); }
+      25% { transform: translate(20px, -10px); }
+      50% { transform: translate(-20px, 10px); }
+      75% { transform: translate(10px, -20px); }
+      100% { transform: translate(0, 0); }
+    }
+    .moving {
+      animation: float 2s infinite linear;
+    }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h1>課題提出チキンレース ～さっさと出せ～</h1>
+    <button class="start-btn" onclick="showRules()">START</button>
+  </div>
+
+  <div id="ruleScreen">
+    <p>【ルール】提出期限は1分後です。提出ボタンをできる限りギリギリに押して、ギリギリ提出を狙いましょう。ただし、ぴったりはアウト！妨害もあります！</p>
+    <div id="countdown"></div>
+  </div>
+
+  <div id="gameScreen">
+    <h2 style="font-family: 'MS Gothic';">課題</h2>
+    <div id="timeLeft"></div>
+    <p style="font-family: 'MS Mincho';">
+      （レポート・論文等の提出に関する注意）  
+以下の文章を確認し理解してください。特に、提出されたレポート・論文に盗用・剽窃・代筆が発覚した場合は、不正行為として全科目無効や停学を含む厳しい処分の対象となります。  
+レポート・論文作成の留意点  
+上記の注意点を理解したうえで、この文章の下側のチェックボックスにチェックを付けレポート・論文等を提出してください。  
+なお、提出されたレポート・論文等については、教員等により剽窃（盗用）の有無をチェックするツールを利用することがあります。これにより、みなさんが提出したレポート・論文等が適切に作成されたものであることを示すことが可能になります。同ツールの初回利用時には使用許諾画面「Turnitin エンドユーザ ライセンス契約(EULA)」が表示されます。【同意します】をクリックしたうえで提出してください（一度【同意します】をクリックすると、以降の提出時には表示されません）。
+    </p>
+    <input type="checkbox" id="agreeBox" onclick="showSubmitButton()"> チェックをつける<br>
+    <button id="submitBtn" class="submit-btn" style="display:none;" onclick="submitReport(this)">課題をこの状態で提出する</button>
+  </div>
+
+  <div id="confirmScreen">
+    <button class="confirm-btn" id="confirm1" onclick="handleSecondConfirm(this)">本当に提出しますか？</button>
+  </div>
+
+  <div id="confirmScreen2">
+    <button class="confirm-btn" id="confirm2" onclick="finalSubmit(this)">え？本当に出しちゃうよ？</button>
+  </div>
+
+  <div id="errorScreen">
+    <p>エラーが発生しました。お手数ですがもう一度提出しなおしてください。</p>
+    <button onclick="retrySubmit()">再提出する</button>
+  </div>
+
+  <div id="resultScreen">
+    <h2>提出完了しました！</h2>
+    <p>残り <span id="finalTime"></span> で提出成功！</p>
+    <p id="finalComment"></p>
+  </div>
+
+  <div id="lateScreen">
+    <h2>時間切れ！</h2>
+    <p>あなたは <span id="lateTime"></span> 提出期限に遅れました。</p>
+  </div>
+
+  <button id="retryBtn" onclick="restartGame()">もう一度遊ぶ</button>
+
+  <audio id="clickSound" src="https://www.soundjay.com/buttons/sounds/button-16.mp3"></audio>
+
+  <script>
+    let startTime, timer, countdownTime = 10;
+
+    const confirmMessages1 = [
+      "本当に提出しますか？",
+      "最後の確認ですが、よろしいですか？",
+      "まだやり残したことはないですか？",
+      "念のため聞きますが、提出で確定しますか？",
+      "これでいいんですか？",
+      "提出しちゃって後悔しませんか？",
+      "まだ間に合いますよ？",
+      "提出ボタン、押す勇気ある？"
+    ];
+
+    const confirmMessages2 = [
+      "え？本当に出しちゃうよ？",
+      "もう戻れないけど大丈夫？",
+      "提出ボタンを押し間違えてない？",
+      "提出しちゃうよ！？覚悟はいい？",
+      "いいの？取り消せないよ？",
+      "押すなよ？絶対押すなよ？",
+      "後戻りできないけど…それでも？",
+      "そのクリック、本気ですか？"
+    ];
+
+    function showRules() {
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("ruleScreen").style.display = "block";
+      const countdown = document.getElementById("countdown");
+      timer = setInterval(() => {
+        countdown.innerHTML = `ゲーム開始まで残り\n${countdownTime}秒`;
+        countdownTime--;
+        if (countdownTime < 0) {
+          clearInterval(timer);
+          startGame();
+        }
+      }, 1000);
+    }
+
+    function startGame() {
+      document.getElementById("ruleScreen").style.display = "none";
+      document.getElementById("gameScreen").style.display = "block";
+      startTime = Date.now();
+      updateGameTime();
+      if (Math.random() < 0.47) {
+        document.getElementById("submitBtn").classList.add("moving");
+      }
+    }
+
+    function updateGameTime() {
+      const timeBox = document.getElementById("timeLeft");
+      const fadeTime = Math.random() * 15 + 15;
+      const fadeOutTime = Date.now() + fadeTime * 1000;
+      const loop = () => {
+        const now = Date.now();
+        const diff = 60 - Math.floor((now - startTime) / 1000);
+        if (diff <= 0) {
+          timeBox.innerHTML = "提出期限まで残り 0分0秒";
+        } else if (now < fadeOutTime) {
+          timeBox.innerHTML = `提出期限まで残り ${Math.floor(diff / 60)}分${diff % 60}秒`;
+        } else {
+          timeBox.innerHTML = "";
+        }
+        if (diff >= -10) requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    function showSubmitButton() {
+      document.getElementById("submitBtn").style.display = "inline-block";
+    }
+
+    function submitReport(btn) {
+      btn.disabled = true;
+      document.getElementById("clickSound").play();
+      const chance = Math.random();
+      if (chance < 0.2) {
+        finalSubmit(btn);
+      } else {
+        document.getElementById("gameScreen").style.display = "none";
+        document.getElementById("confirmScreen").style.display = "block";
+        document.getElementById("confirm1").textContent = (Math.random() < 0.05) ? "課題、出しちゃうんですね......." : confirmMessages1[Math.floor(Math.random() * confirmMessages1.length)];
+        // 【修正】動き回る確率を0.45に変更
+        if (Math.random() < 0.45) {
+          startButtonMove('confirm1'); // 動き開始
+        }
+      }
+    }
+
+    function handleSecondConfirm(btn) {
+      btn.disabled = true;
+      document.getElementById("clickSound").play();
+      const chance = Math.random();
+      document.getElementById("confirmScreen").style.display = "none";
+      stopButtonMove('confirm1'); // confirm1 動き停止
+      if (chance < 0.5) {
+        finalSubmit(btn);
+      } else {
+        document.getElementById("confirmScreen2").style.display = "block";
+        document.getElementById("confirm2").textContent = confirmMessages2[Math.floor(Math.random() * confirmMessages2.length)];
+        // 【修正】動き回る確率を0.45に変更
+        if (Math.random() < 0.45) {
+          startButtonMove('confirm2'); // 動き開始
+        }
+      }
+    }
+
+    function finalSubmit(btn) {
+      if (btn) btn.disabled = true;
+      document.getElementById("clickSound").play();
+      stopButtonMove('confirm1'); // 念のため両方停止
+      stopButtonMove('confirm2');
+      const elapsed = (Date.now() - startTime) / 1000;
+      const remaining = 60 - elapsed;
+      document.body.classList.add("spinner");
+      setTimeout(() => {
+        document.body.classList.remove("spinner");
+        const failChance = Math.random();
+        if (failChance < 0.4) {
+          document.getElementById("errorScreen").style.display = "block";
+        } else {
+          document.querySelectorAll('#gameScreen, #confirmScreen, #confirmScreen2').forEach(el => el.style.display = "none");
+          if (remaining <= 0) {
+            document.getElementById("lateScreen").style.display = "block";
+            document.getElementById("lateTime").textContent = `${Math.floor(-remaining)}秒`;
+          } else {
+            document.getElementById("resultScreen").style.display = "block";
+            document.getElementById("finalTime").textContent = `${Math.floor(remaining)}秒`;
+            document.getElementById("finalComment").textContent = getComment(Math.floor(remaining));
+          }
+          document.getElementById("retryBtn").style.display = "block";
+        }
+      }, 8000);
+    }
+
+    function getComment(seconds) {
+      if (seconds >= 40) return "安全第一な優等生タイプ。でもスリル足りてる？";
+      if (seconds >= 20) return "まあまあ攻めたね！いい感じ！";
+      if (seconds >= 5) return "ギリギリ攻めすぎて手汗止まらん！";
+      if (seconds >= 1) return "その勇気、評価する。でもあと1秒でOUTだったぞ…";
+      return "！？ ギリギリすぎて心臓に悪い！";
+    }
+
+    function retrySubmit() {
+      document.getElementById("clickSound").play();
+      document.getElementById("errorScreen").style.display = "none";
+      document.getElementById("gameScreen").style.display = "block";
+      submitReport(document.getElementById("submitBtn"));
+    }
+
+    function restartGame() {
+      location.reload();
+    }
+
+    document.getElementById("startScreen").style.display = "block";
+
+
+
+    // ここから【追加】確認ボタンが画面の四隅を縦横無尽に動き回る処理
+
+    // 動かすボタンのIDを指定して動きを開始
+    let moveIntervals = {};
+
+    function startButtonMove(buttonId) {
+      const btn = document.getElementById(buttonId);
+      if (!btn) return;
+
+      // 位置を絶対配置に変更（CSSでposition: relativeなのでfixedに切り替え）
+      btn.style.position = "fixed";
+      btn.style.margin = "0"; // マージンリセット
+      btn.style.left = "0px";
+      btn.style.top = "0px";
+
+      // 画面サイズとボタンサイズ取得
+      const btnWidth = btn.offsetWidth;
+      const btnHeight = btn.offsetHeight;
+
+      // 動きの範囲（四隅を意識して広めに）
+      // 画面内でボタンが見切れない範囲に制限
+      const padding = 10; // 端からの余白
+
+      // 移動速度ピクセル（100～200くらいで速さ調整可）
+      const moveSpeed = 150;
+
+      // 現在の位置をランダムに初期化（画面内）
+      let posX = Math.random() * (window.innerWidth - btnWidth - padding * 2) + padding;
+      let posY = Math.random() * (window.innerHeight - btnHeight - padding * 2) + padding;
+
+      // 目標位置（四隅のいずれか）を設定する関数
+      function getRandomCorner() {
+        // 四隅の座標候補
+        const corners = [
+          {x: padding, y: padding}, // 左上
+          {x: window.innerWidth - btnWidth - padding, y: padding}, // 右上
+          {x: padding, y: window.innerHeight - btnHeight - padding}, // 左下
+          {x: window.innerWidth - btnWidth - padding, y: window.innerHeight - btnHeight - padding} // 右下
+        ];
+        return corners[Math.floor(Math.random() * corners.length)];
+      }
+
+      // 現在の目標地点
+      let target = getRandomCorner();
+
+      // 移動タイマー（約30fps）
+      if (moveIntervals[buttonId]) clearInterval(moveIntervals[buttonId]);
+      moveIntervals[buttonId] = setInterval(() => {
+        // X方向距離
+        let dx = target.x - posX;
+        // Y方向距離
+        let dy = target.y - posY;
+
+        // 目標地点までの距離
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        // もし目標地点に十分近ければ、新たな目標地点に変更
+        if (dist < 5) {
+          target = getRandomCorner();
+        } else {
+          // 一歩の移動距離を計算（moveSpeedピクセル/秒を30fpsで割る）
+          const step = moveSpeed / 30;
+          // 距離がstepより小さい場合はstepをdistに合わせる
+          const moveDist = Math.min(step, dist);
+          // 移動割合
+          const ratio = moveDist / dist;
+          posX += dx * ratio;
+          posY += dy * ratio;
+
+          // 画面内に収める処理（念のため）
+          posX = Math.min(Math.max(posX, padding), window.innerWidth - btnWidth - padding);
+          posY = Math.min(Math.max(posY, padding), window.innerHeight - btnHeight - padding);
+
+          btn.style.left = posX + "px";
+          btn.style.top = posY + "px";
+        }
+      }, 33); // 約30fps
+    }
+
+    // 動きを止める関数
+    function stopButtonMove(buttonId) {
+      if (moveIntervals[buttonId]) {
+        clearInterval(moveIntervals[buttonId]);
+        delete moveIntervals[buttonId];
+      }
+      const btn = document.getElementById(buttonId);
+      if (btn) {
+        // 元の位置とpositionに戻す（relativeに戻す）
+        btn.style.position = "relative";
+        btn.style.left = "";
+        btn.style.top = "";
+        btn.style.margin = "";
+      }
+    }
+  </script>
+</body>
+</html>
